@@ -28,25 +28,25 @@ end
 
 def process_stdin(options)
   text = $stdin.read
-  statistic = calculate_text_statistic(text)
-  filtered = filter_statistic(options, statistic)
-  print_statistic(filtered)
+  count = calculate_text_count(text)
+  filtered = filter_count(options, count)
+  print_count(filtered)
 end
 
 def process_files(options, file_names)
   file_contents = file_names.map { |name| File.read(name) }
-  statistics = file_names.zip(file_contents).map do |file_name, text|
-    calculate_text_statistic(text).merge(label: file_name)
+  counts = file_names.zip(file_contents).map do |file_name, text|
+    calculate_text_count(text).merge(label: file_name)
   end
-  statistics << generate_total_statistic(statistics).merge(label: 'total') if statistics.size >= 2
+  counts << generate_total_count(counts).merge(label: 'total') if counts.size >= 2
 
-  filtered = statistics.map do |statistic|
-    filter_statistic(options, statistic).merge(statistic.slice(:label))
+  filtered = counts.map do |count|
+    filter_count(options, count).merge(count.slice(:label))
   end
-  filtered.each { |statistic| print_statistic(statistic) }
+  filtered.each { |count| print_count(count) }
 end
 
-def calculate_text_statistic(text)
+def calculate_text_count(text)
   {
     lines: text.split("\n").size,
     words: text.split("\s").size,
@@ -54,33 +54,33 @@ def calculate_text_statistic(text)
   }
 end
 
-def generate_total_statistic(statistics)
+def generate_total_count(counts)
   {
-    lines: statistics.sum { |statistic| statistic[:lines] },
-    words: statistics.sum { |statistic| statistic[:words] },
-    bytes: statistics.sum { |statistic| statistic[:bytes] }
+    lines: counts.sum { |count| count[:lines] },
+    words: counts.sum { |count| count[:words] },
+    bytes: counts.sum { |count| count[:bytes] }
   }
 end
 
-def filter_statistic(options, statistic)
-  return statistic if options.empty?
+def filter_count(options, count)
+  return count if options.empty?
 
   option_to_key = { l: :lines, w: :words, c: :bytes }
 
   option_to_key.each_with_object({}) do |(option, key), selected|
-    selected[key] = statistic[key] if options[option]
+    selected[key] = count[key] if options[option]
   end
 end
 
-def print_statistic(statistic)
-  keys = %i[lines words bytes].select { |key| statistic.key?(key) }
+def print_count(count)
+  keys = %i[lines words bytes].select { |key| count.key?(key) }
 
   format = keys.map { '%8d' }.join
-  values = keys.map { |key| statistic[key] }
+  values = keys.map { |key| count[key] }
 
-  if statistic[:label]
+  if count[:label]
     format += ' %s'
-    values << statistic[:label]
+    values << count[:label]
   end
 
   puts format(format, *values)
