@@ -72,16 +72,11 @@ end
 
 def print_count(count)
   keys = %i[lines words bytes].select { |key| count.key?(key) }
+  formatted_counts = keys.map { |key| count[key].to_s.rjust(8) }.join
 
-  format = keys.map { '%8d' }.join
-  values = keys.map { |key| count[key] }
+  line = count[:label] ? "#{formatted_counts} #{count[:label]}" : formatted_counts
 
-  if count[:label]
-    format += ' %s'
-    values << count[:label]
-  end
-
-  puts format(format, *values)
+  puts line
 end
 
 main if $PROGRAM_NAME == __FILE__
