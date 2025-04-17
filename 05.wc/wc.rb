@@ -6,11 +6,7 @@ require 'optparse'
 def main
   params = parse_arguments
 
-  if params[:file_names].empty?
-    process_stdin(params[:options])
-  else
-    process_files(params[:options], params[:file_names])
-  end
+  process_files(params[:options], params[:file_names])
 end
 
 def parse_arguments
@@ -26,24 +22,26 @@ def parse_arguments
   { options: options, file_names: ARGV }
 end
 
-def process_stdin(options)
-  text = $stdin.read
-  count = calculate_text_count(text)
-  filtered = filter_count(options, count)
-  print_count(filtered)
-end
-
 def process_files(options, file_names)
-  file_contents = file_names.map { |name| File.read(name) }
-  counts = file_names.zip(file_contents).map do |file_name, text|
-    calculate_text_count(text).merge(label: file_name)
-  end
-  counts << generate_total_count(counts).merge(label: 'total') if counts.size >= 2
+  sources = if file_names.empty?
+              [{ text: $stdin.read }]
+            else
+              file_names.map { |name| { text: File.read(name), label: name } }
+            end
 
-  filtered = counts.map do |count|
-    filter_count(options, count).merge(count.slice(:label))
+  counts = sources.map do |source|
+    calculate_text_count(source[:text]).merge(label: source[:label])
   end
-  filtered.each { |count| print_count(count) }
+
+  if file_names.size >= 2
+    total = generate_total_count(counts).merge(label: 'total')
+    counts << total
+  end
+
+  counts.each do |count|
+    filtered = filter_count(options, count).merge(count.slice(:label))
+    print_count(filtered)
+  end
 end
 
 def calculate_text_count(text)
