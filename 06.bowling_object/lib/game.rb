@@ -15,7 +15,7 @@ class Game
       frame = @frames.last
       frame.add_shot(pinfall)
       following_pinfalls = pinfalls[index.succ..]
-      last_frame?(@frames) ? pinfall : pinfall + add_bonus(frame, following_pinfalls)
+      has_last_frame?(@frames) ? pinfall : pinfall + add_bonus(frame, following_pinfalls)
     end
   end
 
@@ -26,10 +26,10 @@ class Game
   end
 
   def need_new_frame?(frames)
-    !last_frame?(frames) && (frames.empty? || frames.last.closed?)
+    !has_last_frame?(frames) && (frames.empty? || frames.last.closed?)
   end
 
-  def last_frame?(frames)
+  def has_last_frame?(frames)
     frames.size == 10
   end
 
