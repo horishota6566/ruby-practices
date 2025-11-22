@@ -13,7 +13,8 @@ class Frame
     @shots.sum(&:pinfall)
   end
 
-  def bonus(following_shots)
+  def bonus(*following_frames)
+    following_shots = following_frames.compact.map(&:shots).flatten
     if strike?
       following_shots.first(2).sum(&:pinfall)
     elsif spare?

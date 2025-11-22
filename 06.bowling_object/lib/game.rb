@@ -12,8 +12,7 @@ class Game
       if last_frame_index?(index)
         frame.score
       else
-        following_shots = following_shots_from(index)
-        frame.score + frame.bonus(following_shots)
+        frame.score + frame.bonus(@frames[index + 1], @frames[index + 2])
       end
     end
   end
@@ -42,9 +41,5 @@ class Game
 
   def last_frame_index?(index)
     index == @frames.size - 1
-  end
-
-  def following_shots_from(index)
-    @frames[(index + 1)..].map(&:shots).flatten
   end
 end
