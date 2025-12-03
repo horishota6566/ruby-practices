@@ -1,45 +1,42 @@
-#!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# !/usr/bin/env ruby
+
 require 'date'
-require 'optparse'
 
-def main
-  params = parse_arguments
-  calendar_rows = generate_calendar(params)
-  display_calendar(params, calendar_rows)
+def generate_calendar(year: Date.today.year, month: Date.today.month)
+  [
+    "      #{month}月 #{year}",
+    '日 月 火 水 木 金 土',
+    *body(year, month)
+  ].join("\n")
 end
 
-def parse_arguments
-  option_parser = OptionParser.new
-  params = {}
-  option_parser.on('-m [VAL]', Integer) { |m| params[:month] = m }
-  option_parser.on('-y [VAL]', Integer) { |y| params[:year] = y }
-  option_parser.parse!(ARGV)
-  today = Date.today
-  params[:year] ||= today.year
-  params[:month] ||= (params[:year] == today.year ? today.month : 1)
-  params
+def body(year, month)
+  first_date = Date.new(year, month, 1)
+  last_date = Date.new(year, month, -1)
+
+  blanks = Array.new(first_date.wday)
+
+  full_days = [*blanks, *(1..last_date.day)]
+
+  format = ->(n) { n.to_s.rjust(2) }
+
+  full_days.each_slice(7).map do |days|
+    days.map(&format).join(' ')
+  end
 end
 
-def generate_calendar(params)
-  first_date = Date.new(params[:year], params[:month], 1)
-  last_date = Date.new(params[:year], params[:month], -1)
-  days_in_month = last_date.day
-  leading_spaces = [' '] * first_date.wday
+if $PROGRAM_NAME == __FILE__
+  require 'optparse'
+  opt = OptionParser.new
 
-  (1..days_in_month)
-    .to_a
-    .unshift(*leading_spaces)
-    .each_slice(7)
-    .map { |week| week.map { |day| day.to_s.rjust(2) }.join(' ') }
-    .join("\n")
+  options = {}
+
+  opt.on('-m VAL') { |v| options[:month] = v.to_i }
+  opt.on('-y VAL') { |v| options[:year] = v.to_i }
+
+  opt.parse!(ARGV)
+  calendar = generate_calendar(**options)
+  puts calendar
 end
-
-def display_calendar(params, calendar_rows)
-  puts "      #{params[:month]}月 #{params[:year]}"
-  puts "#{%w[日 月 火 水 木 金 土].join(' ')}\n"
-  puts calendar_rows
-end
-
-main if __FILE__ == $PROGRAM_NAME
