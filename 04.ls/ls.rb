@@ -1,158 +1,126 @@
 #!/usr/bin/env ruby
+
 # frozen_string_literal: true
 
 require 'optparse'
 require 'etc'
 
 COLUMN_COUNT = 3
-COLUMN_PADDING = 2
-TARGET_DIR = '.'
-
-def main
-  params = parse_params
-  file_names = fetch_file_names(params)
-  return if file_names.empty?
-
-  file_names.reverse! if params[:r]
-
-  if params[:l]
-    file_stats = file_names.map { |file_name| fetch_file_info(file_name) }
-    block_count = calculate_block_count(file_stats)
-    max_field_widths = calculate_max_field_widths(file_stats)
-    print_files_detailed(block_count, file_stats, max_field_widths)
-  else
-    columns = divide_into_columns(file_names)
-    formatted_columns = format_columns(columns)
-    rows = transpose_columns_to_rows(formatted_columns)
-    print_files(rows)
-  end
-end
+COLUMN_WIDTH_UNIT = 8
 
 def parse_params
-  option_parser = OptionParser.new
+  opt = OptionParser.new
   params = {}
-  option_parser.on('-a', 'Include directory entries whose names begin with a dot.')
-  option_parser.on('-r', 'Reverse the order of the sort.')
-  option_parser.on('-l', 'List files in the long format.')
-  option_parser.parse(ARGV, into: params)
+
+  flags = ['-a', 'r', '-l']
+  flags.each { |flag| opt.on(flag) }
+
+  opt.parse(ARGV, into: params)
 
   params
 end
 
-def fetch_file_names(params)
-  Dir.entries(TARGET_DIR)
-     .select { |entry| params[:a] || entry.start_with?(/[^.]/) }
-     .sort_by(&:downcase)
+def fetch_sorted_files(params)
+  pattern = '*'
+  flags = params[:a] ? File::FNM_DOTMATCH : 0
+
+  files = Dir.glob(pattern, flags).sort
+
+  params[:r] ? files.reverse : files
 end
 
-def fetch_file_info(file_name)
-  file_path = File.join(TARGET_DIR, file_name)
-  file_stat = File.symlink?(file_path) ? File.lstat(file_path) : File.stat(file_path)
+def build_rows(files)
+  column_size = (files.size + (COLUMN_COUNT - 1)) / COLUMN_COUNT
+  columns = files.each_slice(column_size).map { |column| column + [''] * (column_size - column.size) }
+  columns.transpose
+end
 
-  mode_str = file_stat.mode.to_s(8).rjust(6, '0')
-  match = mode_str.match(/^(\d{2}).(\d{3})$/)
+def format_rows(rows)
+  max_filename_length = rows.flatten.map(&:length).max
+  column_width = ((max_filename_length + COLUMN_WIDTH_UNIT - 1) / COLUMN_WIDTH_UNIT) * COLUMN_WIDTH_UNIT
+  rows.map do |row|
+    row.map { |cell| cell.ljust(column_width) }.join
+  end.join("\n")
+end
+
+def convert_mode_to_filetype(mode)
+  case mode & 0o170000
+  when 0o040000 then 'd'
+  when 0o100000 then '-'
+  when 0o120000 then 'l'
+  end
+end
+
+def convert_bits_to_rwx(bits)
+  [
+    (bits & 0b100).zero? ? '-' : 'r',
+    (bits & 0b010).zero? ? '-' : 'w',
+    (bits & 0b001).zero? ? '-' : 'x'
+  ].join
+end
+
+def convert_mode_to_rwx(mode)
+  bits = mode & 0o777
+  [
+    convert_bits_to_rwx(bits >> 6 & 0b111),
+    convert_bits_to_rwx(bits >> 3 & 0b111),
+    convert_bits_to_rwx(bits & 0b111)
+  ].join
+end
+
+def build_file_infos(file)
+  file_stat = File.lstat(file)
+  mode = file_stat.mode
+  user_entry = Etc.getpwuid(file_stat.uid)
+  group_entry = Etc.getgrgid(file_stat.gid)
 
   {
-    block_count: file_stat.blocks,
-    file_type: convert_file_type_format(match[1]),
-    permissions: match[2].each_char.map { |permission| convert_permission_format(permission) }.join,
-    hard_link_count: file_stat.nlink,
-    owner: Etc.getpwuid(file_stat.uid).name,
-    group: Etc.getgrgid(file_stat.gid).name,
-    file_size: file_stat.size,
-    update_time: file_stat.mtime.strftime('%_2m %_2d %H:%M'),
-    file_name: File.symlink?(file_name) ? convert_link_format(file_name) : file_name
+    blocks: file_stat.blocks,
+    type: convert_mode_to_filetype(mode),
+    permissions: convert_mode_to_rwx(mode),
+    links: file_stat.nlink,
+    owner: user_entry.name,
+    group: group_entry.name,
+    size: file_stat.size,
+    updated: file_stat.mtime.strftime('%b %_d %R'),
+    name: File.symlink?(file) ? "#{File.basename(file)} -> #{File.readlink(file)}" : File.basename(file)
   }
 end
 
-def convert_file_type_format(file_type)
-  {
-    '04' => 'd',
-    '10' => '-',
-    '12' => 'l'
-  }[file_type]
-end
+def format_file_infos(file_infos)
+  keys = %i[links owner group size]
+  widths = keys.to_h do |key|
+    [key, file_infos.map { |info| info[key].to_s.length }.max]
+  end
 
-def convert_permission_format(permission)
-  {
-    '0' => '---',
-    '1' => '--x',
-    '2' => '-w-',
-    '3' => '-wx',
-    '4' => 'r--',
-    '5' => 'r-x',
-    '6' => 'rw-',
-    '7' => 'rwx'
-  }[permission]
-end
+  file_infos.map do |info|
+    format_string =
+      '%<type>s%<permissions>s  ' \
+      "%<links>#{widths[:links]}d " \
+      "%<owner>#{widths[:owner]}s  " \
+      "%<group>#{widths[:group]}s  " \
+      "%<size>#{widths[:size]}d " \
+      '%<updated>s %<name>s'
 
-def convert_link_format(symlink_path)
-  target_path = File.readlink(symlink_path)
-  "#{symlink_path} -> #{target_path}"
-end
-
-def calculate_block_count(file_stats)
-  file_stats.sum { |file_info| file_info[:block_count] }
-end
-
-def calculate_max_field_widths(file_stats)
-  {
-    hard_link: file_stats.map { |file_stat| file_stat[:hard_link_count].to_s.length }.max,
-    owner: file_stats.map { |file_stat| file_stat[:owner].length }.max,
-    group: file_stats.map { |file_stat| file_stat[:group].length }.max,
-    file_size: file_stats.map { |file_stat| file_stat[:file_size].to_s.length }.max
-  }
-end
-
-def print_files_detailed(block_count, file_stats, max_field_widths)
-  puts "total #{block_count}"
-  file_stats.each do |file_info|
-    format = "%s%s  %#{max_field_widths[:hard_link]}d %-#{max_field_widths[:owner]}s  %-#{max_field_widths[:group]}s  %#{max_field_widths[:file_size]}d %s %s"
-
-    puts format(format, *file_info.except(:block_count).values)
+    format(format_string, info)
   end
 end
 
-def format_columns(columns)
-  columns.map do |column|
-    max_length = max_file_name_length(column)
-    column_width = calculate_column_width(max_length)
-    pad_file_names(column, column_width)
+def main
+  params = parse_params
+  files = fetch_sorted_files(params)
+
+  if params[:l]
+    file_infos = files.map { |file| build_file_infos(file) }
+    formatted = format_file_infos(file_infos)
+    total = file_infos.map { |info| info[:blocks] }.sum
+    puts "total #{total}\n"
+    puts formatted.join("\n")
+  else
+    rows = build_rows(files)
+    formatted = format_rows(rows)
+    puts formatted
   end
-end
-
-def divide_into_columns(file_names)
-  row_count = (file_names.size / COLUMN_COUNT).ceil
-  file_names.each_slice(row_count).to_a
-end
-
-def max_file_name_length(file_names)
-  file_names.map(&:length).max
-end
-
-def calculate_column_width(max_file_name_length)
-  max_file_name_length + COLUMN_PADDING
-end
-
-def pad_file_names(column, column_width)
-  column.map { |cell| cell.ljust(column_width) }
-end
-
-def transpose_columns_to_rows(formatted_columns)
-  file_names = formatted_columns.flatten
-
-  row_count = (file_names.size / COLUMN_COUNT).ceil
-  rows = Array.new(row_count) { [] }
-
-  file_names.each_with_index do |file_name, index|
-    rows[index % row_count] << file_name
-  end
-
-  rows
-end
-
-def print_files(rows)
-  puts rows.map(&:join)
 end
 
 main if $PROGRAM_NAME == __FILE__
