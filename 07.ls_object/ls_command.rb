@@ -10,7 +10,7 @@ require_relative 'short_list'
 
 class LsCommand
   def initialize(args)
-    @params = parse_params(args)
+    @flags = read_flags(args)
   end
 
   def run
@@ -20,33 +20,33 @@ class LsCommand
 
   private
 
-  def parse_params(args)
-    params = {}
+  def read_flags(args)
+    flags = { a: false, r: false, l: false }
 
     OptionParser.new do |opt|
-      opt.on('-a') { params[:a] = true }
-      opt.on('-r') { params[:r] = true }
-      opt.on('-l') { params[:l] = true }
+      opt.on('-a') { |v| flags[:a] = v }
+      opt.on('-r') { |v| flags[:r] = v }
+      opt.on('-l') { |v| flags[:l] = v }
 
       opt.parse(args)
     end
 
-    params
+    flags
   end
 
   def fetch_file_names
     pattern = '*'
-    flags = @params[:a] ? File::FNM_DOTMATCH : 0
+    flags = @flags[:a] ? File::FNM_DOTMATCH : 0
 
     file_names = Dir.glob(pattern, flags).sort
 
-    @params[:r] ? file_names.reverse : file_names
+    @flags[:r] ? file_names.reverse : file_names
   end
 
   def build_list
     file_names = fetch_file_names
 
-    if @params[:l]
+    if @flags[:l]
       file_infos = file_names.map { |name| FileInfo.new(name) }
       LongList.new(file_infos)
     else
