@@ -1,12 +1,10 @@
 # frozen_string_literal: true
 
 class LongList
+  attr_reader :lines
+
   def initialize(file_infos)
     @lines = build_lines(file_infos)
-  end
-
-  def to_s
-    @lines.join("\n")
   end
 
   private

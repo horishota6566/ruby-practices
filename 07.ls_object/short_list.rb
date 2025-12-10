@@ -1,15 +1,13 @@
 # frozen_string_literal: true
 
 class ShortList
+  attr_reader :lines
+
   COLUMN_COUNT = 3
   COLUMN_WIDTH_UNIT = 8
 
   def initialize(file_names)
     @lines = build_lines(file_names)
-  end
-
-  def to_s
-    @lines.join("\n")
   end
 
   private

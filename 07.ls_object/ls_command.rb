@@ -17,7 +17,7 @@ class LsCommand
 
   def run
     list = @params[:l] ? LongList.new(@file_infos) : ShortList.new(@file_names)
-    puts list
+    puts list.lines
   end
 
   private
