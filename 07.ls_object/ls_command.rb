@@ -9,8 +9,8 @@ require_relative 'long_list'
 require_relative 'short_list'
 
 class LsCommand
-  def initialize
-    @params = parse_params
+  def initialize(args)
+    @params = parse_params(args)
   end
 
   def run
@@ -20,7 +20,7 @@ class LsCommand
 
   private
 
-  def parse_params
+  def parse_params(args)
     params = {}
 
     OptionParser.new do |opt|
@@ -28,7 +28,7 @@ class LsCommand
       opt.on('-r') { params[:r] = true }
       opt.on('-l') { params[:l] = true }
 
-      opt.parse(ARGV)
+      opt.parse(args)
     end
 
     params
@@ -55,4 +55,5 @@ class LsCommand
   end
 end
 
-LsCommand.new.run if $PROGRAM_NAME == __FILE__
+ls_command = LsCommand.new(ARGV)
+ls_command.run if $PROGRAM_NAME == __FILE__
