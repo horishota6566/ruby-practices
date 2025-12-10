@@ -11,12 +11,10 @@ require_relative 'short_list'
 class LsCommand
   def initialize
     @params = parse_params
-    @file_names = fetch_file_names
-    @file_infos = @params[:l] ? @file_names.map { |name| FileInfo.new(name) } : nil
   end
 
   def run
-    list = @params[:l] ? LongList.new(@file_infos) : ShortList.new(@file_names)
+    list = build_list
     puts list.lines
   end
 
@@ -43,6 +41,17 @@ class LsCommand
     file_names = Dir.glob(pattern, flags).sort
 
     @params[:r] ? file_names.reverse : file_names
+  end
+
+  def build_list
+    file_names = fetch_file_names
+
+    if @params[:l]
+      file_infos = file_names.map { |name| FileInfo.new(name) }
+      LongList.new(file_infos)
+    else
+      ShortList.new(file_names)
+    end
   end
 end
 
