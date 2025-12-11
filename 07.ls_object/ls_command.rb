@@ -55,5 +55,7 @@ class LsCommand
   end
 end
 
-ls_command = LsCommand.new(ARGV)
-ls_command.run if $PROGRAM_NAME == __FILE__
+if $PROGRAM_NAME == __FILE__
+  ls_command = LsCommand.new(ARGV)
+  ls_command.run
+end
